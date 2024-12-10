@@ -18,7 +18,6 @@ import API from '../../api';
 
 import {
     addKeyToStore,
-    addServiceHostToStore,
     addServiceToStore,
     allowProviderTemplateToStore,
     deleteKeyFromStore,
@@ -31,33 +30,11 @@ import {
     returnServices,
 } from '../actions/services';
 import { storeServices } from '../actions/domains';
-import {
-    buildErrorForDoesntExistCase,
-    buildErrorForDuplicateCase,
-    getCurrentTime,
-    getFullName,
-    isExpired,
-    listToMap,
-} from '../utils';
+import { buildErrorForDoesntExistCase, buildErrorForDuplicateCase, getFullName, isExpired, listToMap } from '../utils';
 import { getServicesApiCall } from './utils/services';
-import {
-    selectInstancesWorkLoadData,
-    thunkSelectService,
-    thunkSelectServices,
-} from '../selectors/services';
-import { roleDelimiter, serviceDelimiter } from '../config';
-import {
-    loadingFailed,
-    loadingInProcess,
-    loadingSuccess,
-} from '../actions/loading';
-import { thunkSelectRoles } from '../selectors/roles';
-import { deleteRoleFromStore } from '../actions/roles';
-import { getRoles } from './roles';
-import {
-    SERVICE_TYPE_DYNAMIC,
-    SERVICE_TYPE_STATIC,
-} from '../../components/constants/constants';
+import { selectInstancesWorkLoadData, thunkSelectService, thunkSelectServices } from '../selectors/services';
+import { serviceDelimiter } from '../config';
+import { SERVICE_TYPE_DYNAMIC } from '../../components/constants/constants';
 import { getFeatureFlag } from './domains';
 
 export const addService =
@@ -181,6 +158,20 @@ export const addKey =
             return Promise.reject(err);
         }
     };
+
+export const searchServices = (subString) => async () => {
+    if (!subString) {
+        return 'you must provide part of service name to search for';
+    } else {
+        try {
+            return API().searchServices(
+                subString
+            );
+        } catch (err) {
+            return Promise.reject(err);
+        }
+    }
+}
 
 export const getServices = (domainName) => async (dispatch, getState) => {
     if (getState().services.expiry) {

@@ -811,6 +811,35 @@ const Api = (req) => {
             });
         },
 
+        searchServices(subString) {
+            return new Promise((resolve, reject) => {
+                // fetchr.read('search-services')
+                //     .params({ subString })
+                //     .end((err, data) => {
+                //         if (err) {
+                //             reject(err);
+                //         } else {
+                //             if (data) {
+                //                 resolve(data);
+                //             } else {
+                //                 resolve([]);
+                //             }
+                //         }
+                //     });
+                resolve(
+                    {
+                    list: [
+                        {
+                            name: "home.aporss:service.search-services1",
+                        },
+                        {
+                            name: "home.aporss:service.search-services2",
+                        },
+                    ],
+                });
+            });
+        },
+
         getServices(domainName, publickeys, hosts) {
             return new Promise((resolve, reject) => {
                 fetchr
