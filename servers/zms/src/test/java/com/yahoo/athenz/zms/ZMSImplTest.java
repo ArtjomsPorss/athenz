@@ -3466,6 +3466,56 @@ public class ZMSImplTest {
     }
 
     @Test
+    public void testDeleteMembershipByReqPrincipal() {
+
+        ZMSImpl zmsImpl = zmsTestInitializer.getZms();
+        RsrcCtxWrapper ctx = zmsTestInitializer.getMockDomRsrcCtx();
+        final String auditRef = zmsTestInitializer.getAuditRef();
+
+        final String domainName = "mbr-del-dom-req-princ";
+        TopLevelDomain dom1 = zmsTestInitializer.createTopLevelDomainObject(domainName,
+                "Test Domain1", "testOrg", "user.user1");
+        zmsImpl.postTopLevelDomain(ctx, auditRef, null, dom1);
+
+        Role role1 = zmsTestInitializer.createRoleObject(domainName, "Role1", null,
+                "user.joe", "user.jack");
+        role1.setSelfServe(true);
+
+        zmsImpl.putRole(ctx, domainName, "Role1", auditRef, false, null, role1);
+
+        Authority principalAuthority = new com.yahoo.athenz.common.server.debug.DebugPrincipalAuthority();
+        Principal principal1 = principalAuthority.authenticate("v=U1;d=user;n=user2;s=signature",
+                "10.11.12.13", "GET", null);
+        ResourceContext rsrcCtx1 = zmsTestInitializer.createResourceContext(principal1);
+
+        Membership m1 = new Membership().setMemberName("user.jane");
+        zmsImpl.putMembership(rsrcCtx1, domainName, "Role1", "user.jane", auditRef, false, null, m1);
+        m1.setActive(true).setApproved(true);
+        zmsImpl.putMembershipDecision(ctx, domainName, "Role1", "user.jane", auditRef, m1);
+
+        // now let's try to delete user.jane, which should work
+        zmsImpl.deleteMembership(rsrcCtx1, domainName, "Role1", "user.jane", auditRef, null);
+
+        // now try to delete the other user which should be rejected
+        try {
+            zmsImpl.deleteMembership(rsrcCtx1, domainName, "Role1", "user.joe", auditRef, null);
+            fail();
+        } catch (ResourceException ex) {
+            assertEquals(ex.getCode(), ResourceException.FORBIDDEN);
+        }
+
+        // now verify the results
+
+        Role role = zmsImpl.getRole(ctx, domainName, "Role1", false, false, false);
+        assertNotNull(role);
+
+        List<RoleMember> members = role.getRoleMembers();
+        assertNotNull(members);
+        assertEquals(members.size(), 2);
+        zmsImpl.deleteTopLevelDomain(ctx, domainName, auditRef, null);
+    }
+
+    @Test
     public void testDeleteMembershipMissingAuditRef() {
 
         ZMSImpl zmsImpl = zmsTestInitializer.getZms();
@@ -23392,7 +23442,7 @@ public class ZMSImplTest {
         RsrcCtxWrapper ctx = zmsTestInitializer.getMockDomRsrcCtx();
 
         DomainTemplateDetailsList serverTemplateDetailsList = zmsImpl.getServerTemplateDetailsList(ctx);
-        assertEquals(serverTemplateDetailsList.getMetaData().size(), 14);
+        assertEquals(serverTemplateDetailsList.getMetaData().size(), 15);
         TemplateMetaData vipTemplateMetaData = null;
         for (TemplateMetaData templateMetaData : serverTemplateDetailsList.getMetaData()) {
             if (templateMetaData.getTemplateName().equals("vipng")) {
@@ -30650,5 +30700,39 @@ public class ZMSImplTest {
         verify(zmsTestInitializer.getMockNotificationManager(),
                 times(1)).sendNotifications(eq(expextedNotifications));
         zmsImpl.deleteTopLevelDomain(ctx, domainName, auditRef, null);
+    }
+
+    @Test
+    public void testPutPolicyWithLongActionRejected() {
+
+        String domainName = "long-action-value";
+        String policyName = "action-test";
+
+        ZMSImpl zmsImpl = zmsTestInitializer.getZms();
+        RsrcCtxWrapper ctx = zmsTestInitializer.getMockDomRsrcCtx();
+        final String auditRef = zmsTestInitializer.getAuditRef();
+
+        TopLevelDomain dom1 = zmsTestInitializer.createTopLevelDomainObject(domainName,
+                "Test Domain1", "testOrg", zmsTestInitializer.getAdminUser());
+        when(ctx.getApiName()).thenReturn("posttopleveldomain").thenReturn("putpolicy");
+        zmsImpl.postTopLevelDomain(ctx, auditRef, null, dom1);
+
+        final String action = Strings.repeat("test-action", 240);
+        Policy policy = zmsTestInitializer.createPolicyObject(domainName, policyName, "admin",
+                action, domainName + ":test-resource", AssertionEffect.ALLOW);
+
+        // try to add - should be failure, but we want the error to be
+        // invalid request with schema violation rather than
+        // 500 - internal server failure
+
+        try{
+            zmsImpl.putPolicy(ctx, domainName, policyName, auditRef, false, null, policy);
+            fail("should be fail");
+        } catch (ResourceException ex) {
+            assertEquals(ex.getCode(), 400);
+            assertTrue(ex.getMessage().contains("Schema violation - data too long"));
+        } finally {
+            zmsImpl.deleteTopLevelDomain(ctx, domainName, auditRef, null);
+        }
     }
 }
